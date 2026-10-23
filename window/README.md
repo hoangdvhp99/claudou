@@ -1,66 +1,62 @@
-# Claudou for Windows 🚀
+# Claudou for Windows
 
-> **Mở nhiều tài khoản Claude Desktop trên một máy Windows**
+Runs multiple Claude Desktop accounts side by side (Python + customtkinter, system tray). Behavior and UI follow [docs/SPEC.md](../docs/SPEC.md); the macOS app is the reference implementation.
 
-## Cách hoạt động
+> **Status:** logic is unit-tested, but the UI and the `--user-data-dir` launch have **not yet been verified on a real Windows install**. See [ISSUES.md](ISSUES.md).
 
-Claude Desktop (bản Microsoft Store) lưu toàn bộ data (session, đăng nhập, config) vào thư mục:
+## How it works
+
+Every profile is a separate Claude process with its own data folder:
+
 ```
-%LOCALAPPDATA%\Claude-Data\claude_pzs8sxrjxfjjc\
-```
-
-Claudou tạo nhiều "profile" (thư mục riêng biệt) và trước mỗi lần launch, chuyển hướng **Directory Junction** của thư mục trên sang profile được chọn. Mỗi profile hoàn toàn độc lập.
-
-## Cài đặt & Chạy
-
-### Chạy trực tiếp (cần Python)
-
-```powershell
-# 1. Cài dependencies
-pip install -r requirements.txt
-
-# 2. Chạy app (cần quyền Admin để tạo junction)
-python claudou.py
+"C:\...\claude.exe" --user-data-dir=<profile folder>
 ```
 
-> **Lưu ý:** App sẽ tự yêu cầu quyền Administrator khi khởi động (cần để tạo directory junction).
-
-### Build file .exe
-
-```powershell
-pip install pyinstaller
-.\build_exe.ps1
-# File exe tạo ra tại: dist\Claudou.exe
-```
-
-## Hướng dẫn sử dụng
-
-1. **Tạo Profile**: Nhấn **＋ Tạo Profile Mới** → đặt tên, chọn emoji và màu sắc
-2. **Mở Claude**: Nhấn **▶ Mở** hoặc double-click vào profile card
-3. **Quản lý**: Nhấn **⋮** để đổi tên hoặc xóa profile
-4. **Đổi account**: Đóng Claude hiện tại → nhấn **▶ Mở** với profile khác
-
-## Cấu trúc dữ liệu
+- Profiles run in parallel; nothing is quit to open another profile.
+- **Default** launches Claude without flags and uses Claude's own folder (`%APPDATA%\Claude`); it is never moved or deleted.
+- A profile counts as running when a `claude.exe` main process has a matching `--user-data-dir` (read with `psutil`).
+- *Show* focuses the window; *Quit this Claude* sends `WM_CLOSE` and terminates the process tree after 10 s.
 
 ```
 %LOCALAPPDATA%\Claudou\
-├── config.json           # Danh sách profiles và metadata
-└── profiles\
-    ├── default\          # Profile mặc định (data riêng)
-    ├── cong_ty_a\        # Profile Công ty A
-    └── ca_nhan\          # Profile cá nhân
+├── config.json        # profile list (same schema as macOS)
+├── settings.json      # path to claude.exe
+└── profiles\<name>\   # data folder for profiles created by Claudou
 ```
 
-## Lưu ý quan trọng
+## Run from source
 
-- ⚠️ **Cần đóng Claude trước** khi chuyển sang profile khác
-- ⚠️ **Cần quyền Admin** để tạo directory junction (app tự yêu cầu)
-- ✅ Mỗi profile có session đăng nhập, lịch sử chat, và MCP config riêng
-- ✅ Hỗ trợ Claude Desktop bản Microsoft Store (MSIX)
+```powershell
+cd window
+pip install -r requirements.txt
+python -m claudou
+```
 
-## Yêu cầu hệ thống
+Tests (any OS): `python -m unittest discover -s tests`
 
-- Windows 10/11
-- Python 3.12+ (nếu chạy từ source)
-- Claude Desktop (Microsoft Store version)
-- Quyền Administrator
+## Build `Claudou.exe`
+
+```powershell
+cd window
+.\build_exe.ps1 -Install      # → dist\Claudou.exe
+```
+
+## Usage
+
+- **Launcher window** (bottom-right, hides to the tray on close): **Open** / **Show**, ✕ to quit that Claude.
+- **Settings**: path to `claude.exe` (auto-detected for Store, per-user and Program Files installs) and profile **create / edit / delete**.
+
+## Source layout
+
+| File | Purpose |
+|---|---|
+| `claudou/store.py` | Profile model, persistence, settings |
+| `claudou/launcher.py` | Command building, process discovery, focus/quit |
+| `claudou/ui.py` | Launcher window, Settings, profile editor, tray |
+| `claudou/theme.py` | Palette (same values as `Theme.swift`) |
+| `tests/test_core.py` | Store + matching tests |
+| `main.py` | PyInstaller entry point |
+
+## Requirements
+
+Windows 10/11 · Python 3.10+ (source) · Claude Desktop. No administrator rights needed.
