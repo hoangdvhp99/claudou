@@ -1,42 +1,31 @@
-# build_exe.ps1 - Build Claudou thành file .exe
-# Yêu cầu: pip install pyinstaller
+# Build Claudou.exe with PyInstaller.
+# Usage: .\build_exe.ps1 [-Install]
+param([switch]$Install)
 
-param(
-    [switch]$Install   # Truyền -Install để auto cài pyinstaller
-)
-
-Write-Host "=== Claudou Builder ===" -ForegroundColor Cyan
+$ErrorActionPreference = "Stop"
+Set-Location $PSScriptRoot
 
 if ($Install) {
-    Write-Host "Cài đặt pyinstaller..." -ForegroundColor Yellow
-    pip install pyinstaller --quiet
+    pip install -r requirements.txt pyinstaller
 }
-
-# Kiểm tra pyinstaller
 if (-not (Get-Command pyinstaller -ErrorAction SilentlyContinue)) {
-    Write-Host "Lỗi: pyinstaller chưa được cài. Chạy lại với -Install" -ForegroundColor Red
+    Write-Host "pyinstaller not found. Re-run with -Install." -ForegroundColor Red
     exit 1
 }
 
-# Lấy path customtkinter để include assets
-$ctk_path = python -c "import customtkinter; import os; print(os.path.dirname(customtkinter.__file__))"
+# App icon (.ico) generated from the shared logo
+$ico = Join-Path $env:TEMP "claudou.ico"
+python -c "from PIL import Image; Image.open(r'..\assets\logo.png').convert('RGBA').save(r'$ico', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
 
-Write-Host "customtkinter path: $ctk_path" -ForegroundColor Gray
+$ctk = python -c "import customtkinter, os; print(os.path.dirname(customtkinter.__file__))"
 
-# Build
-pyinstaller `
-    --onefile `
-    --windowed `
-    --name "Claudou" `
-    --add-data "$ctk_path;customtkinter/" `
-    --hidden-import "customtkinter" `
-    --hidden-import "tkinter" `
-    --uac-admin `
-    claudou.py
+pyinstaller --noconfirm --onefile --windowed --name Claudou `
+    --icon $ico `
+    --add-data "$ctk;customtkinter/" `
+    --add-data "..\assets;assets" `
+    --add-data "..\VERSION;." `
+    --hidden-import pystray._win32 `
+    main.py
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "`n=== Build thành công! ===" -ForegroundColor Green
-    Write-Host "File exe: dist\Claudou.exe" -ForegroundColor Cyan
-} else {
-    Write-Host "`n=== Build thất bại ===" -ForegroundColor Red
-}
+if ($LASTEXITCODE -eq 0) { Write-Host "Built: dist\Claudou.exe" -ForegroundColor Green }
+else { Write-Host "Build failed" -ForegroundColor Red; exit 1 }
