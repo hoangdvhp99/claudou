@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ["CLAUDOU_HOME"] = tempfile.mkdtemp()
 
-from claudou import launcher, store  # noqa: E402
+from claudou import launcher, startup, store  # noqa: E402
 
 
 class CommandTests(unittest.TestCase):
@@ -30,6 +30,13 @@ class MatchTests(unittest.TestCase):
 
     def test_unknown_dir_matches_nothing(self):
         self.assertEqual(launcher.match_profiles([(9, ["c", "--user-data-dir=X:\\other"])], self.spec), {})
+
+
+class StartupTests(unittest.TestCase):
+    def test_not_supported_from_source(self):
+        # Only the frozen Claudou.exe on Windows may register itself as a login item.
+        self.assertFalse(startup.supported())
+        self.assertFalse(startup.is_enabled())
 
 
 class StoreTests(unittest.TestCase):

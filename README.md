@@ -8,8 +8,8 @@ Each platform has its own native implementation; no code is shared between them,
 
 | Platform | Status | Stack | How it switches accounts |
 |---|---|---|---|
-| [macOS](macOS/) | Available | Swift / SwiftUI menu bar app | Parallel instances via `--user-data-dir` |
-| [Windows](window/) | Available (UI untested on real Windows yet) | Python / customtkinter + tray | Parallel instances via `--user-data-dir` |
+| [macOS](macOS/) | Available | Swift / SwiftUI menu bar app (macOS 26 look) | Parallel instances via `--user-data-dir` |
+| [Windows](window/) | Available (UI untested on real Windows yet) | Python / customtkinter + tray, light/dark | Parallel instances via `--user-data-dir` |
 | [Linux](docs/linux-tech-stack.md) | Planned (stack proposed) | Python / GTK4 + libadwaita | Parallel instances via `--user-data-dir` |
 
 ## Quick start (macOS)

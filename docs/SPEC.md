@@ -54,40 +54,50 @@ The path to the Claude app/executable is a per-platform setting (macOS `UserDefa
 
 ## 5. UI specification
 
-Language: **English only**. Style: **square corners everywhere**, dark-orange palette, compact density.
+Language: **English only**. Compact density, orange accent. Every platform follows the system look; only the brand colors are shared.
 
-### 5.1 Palette
+**macOS 26 (reference):** follows the system appearance and uses system semantic colors. Settings and the editor are translucent windows (behind-window vibrancy, transparent title bar) with flat rounded cards (radius 16) on a large bold title. Controls are native: `.bordered` for secondary and `.borderedProminent` tinted with the accent for primary actions; the launcher uses small filled pills. Older macOS falls back to the same styles without glass.
 
-| Token | Hex | Token | Hex |
-|---|---|---|---|
-| accent | `#e8590c` | text | `#f5ece4` |
-| accent hover | `#c94a08` | dim | `#a38f80` |
-| background | `#140f0b` | success | `#5fb878` |
-| surface | `#1b1410` | border | `#3a2b21` |
-| card | `#241a14` | input | `#100b08` |
-| card hover | `#2d2018` | | |
+**Windows:** follows the Windows app mode (light/dark) with neutral Windows 11 surfaces, rounded cards (radius 14), rounded controls (radius 8), pills for Open/Show. Same layout as macOS.
+
+**Linux:** planned, libadwaita defaults (see [linux-tech-stack.md](linux-tech-stack.md)).
+
+### 5.1 Colors
+
+Shared by all platforms:
+
+| Token | Hex | Use |
+|---|---|---|
+| accent | `#e8590c` | Open pill, primary buttons, switch |
+| accent hover | `#c94a08` | Windows hover/pressed |
+| success | `#5fb878` | `Running`, `N running`, found banner |
+| success strong | `#2f9e5b` | Show pill fill (white text) |
 
 Profile colors: `#e8590c #f59f00 #d9480f #c2255c #7048e8 #1c7ed6 #0ca678 #868e96`.
 
+Surfaces, text, borders and secondary buttons are platform-native: macOS system colors, Windows (light, dark) pairs in `window/claudou/theme.py`.
+
 ### 5.2 Launcher (menu bar popover / tray window / tray menu)
 
-Launch-only surface, ~300 pt wide.
+A menu-style, launch-only surface, ~340 pt wide, no section label above the list.
 
-- **Header:** logo (22), "Claudou", status text — `N running` (success color) or `Idle`.
-- **Accent rule** (1 px) under the header.
-- **Row** (44 px): square avatar (28, profile color, white initial) · name · subtitle (`Running` / `Never opened` / `Last opened MMM d, HH:mm`) · button **Open** (accent) or **Show** (success) · ✕ *Quit this Claude* only while running · double-click = Open/Show.
-- **Footer:** **Settings** · **Quit Claudou**.
+- **Header:** rounded logo (30), "Claudou", and below it the status text — `N running` (success color) or `Idle`. Hairline divider.
+- **Row** (48 pt, the hover highlight fills the whole row, rows 2 pt apart): rounded avatar (30, profile color, white initial) · name · subtitle (`Running` / `Never opened` / `Opened MMM d, HH:mm`) · pill **Open** (accent) or **Show** (success strong) · ✕ *Quit this Claude* only while running · double-click = Open/Show. The ✕ slot is always reserved so Open/Show line up across rows.
+- **Divider**, then plain menu rows: **Settings…** · **Quit** (shortcut ⌘Q on macOS, Ctrl+Q on Windows).
 
-Linux may use a tray *menu* with the same entries because AppIndicator has no popover (see [linux-tech-stack.md](linux-tech-stack.md)).
+Linux may use a tray *menu* with the same entries because AppIndicator has no popover.
 
 ### 5.3 Settings window
 
-1. **Claude app/executable** — path field, **Browse…**, **Reset** (macOS) / **Auto-detect** (Windows, Linux); status line `Claude found` / `Not found at this path`. Saved automatically as you type.
-2. **Profiles** — header with **+ New profile**; each row: avatar, name, `RUNNING` / `DEFAULT` tags, folder path, *Reveal folder*, **Edit**, *Delete* (disabled per B-7).
+Header: rounded logo (56), **Claudou** (26 bold), subtitle "Run several Claude accounts side by side." Then, as cards:
+
+1. **Claude app/executable** (macOS `Claude.app`, Windows `Claude executable`) — path field, **Browse…**, **Reset** (macOS) / **Auto-detect** (Windows, Linux). Below it a status banner, green `Claude found` or orange `Not found at this path`. Saved automatically as you type.
+2. **Launch at startup** — switch with the hint "Start Claudou in the menu bar when your computer starts." (Windows: "…in the tray…"). macOS uses `SMAppService` (a hint explains approval in Login Items if needed); Windows writes the per-user `Run` key and is available only in the packaged `.exe`.
+3. **Profiles** — title with **+ New profile** (accent); one card per profile: avatar (40), name, `RUNNING` / `DEFAULT` tags, folder path, *Reveal folder*, **Edit**, *Delete* (red; disabled per B-7).
 
 ### 5.4 Profile editor
 
-Fields in order: **Name** · **Color** (8 swatches) · **Data folder** (hidden for Default; placeholder "Leave empty to create one in Claudou/profiles", **Choose…**) · **Launch command** (monospace; hint "Generated from …" or "Edited by hand — used exactly as written."; **Regenerate** appears only when edited) · **Cancel** / **Save** (disabled while name is empty).
+Title **New profile** / **Edit profile**, then one card with sentence-case labels: **Name** · **Color** (8 round swatches) · **Data folder (--user-data-dir)** (hidden for Default; placeholder "Leave empty to create one in Claudou/profiles", **Choose…**) · **Launch command** (monospace; hint "Generated from …" or "Edited by hand — used exactly as written."; **Regenerate** appears only when edited). Below the card: **Cancel** / **Save** (accent, disabled while name is empty).
 
 ### 5.5 Branding
 
@@ -97,11 +107,12 @@ Fields in order: **Name** · **Color** (8 swatches) · **Data folder** (hidden f
 
 | Concern | macOS | Windows | Linux (planned) |
 |---|---|---|---|
-| Stack | Swift 5.9 / SwiftUI | Python 3.12 / customtkinter | Python 3 / GTK4 + libadwaita |
+| Stack | Swift 5.9 / SwiftUI (macOS 13+, macOS 26 look) | Python 3.12 / customtkinter | Python 3 / GTK4 + libadwaita |
 | Launcher surface | `MenuBarExtra` popover | Compact window + system tray | AppIndicator menu |
 | Process discovery | `ps` command lines | `psutil` | `/proc/*/cmdline` (psutil) |
 | Show | `NSRunningApplication.activate` | `SetForegroundWindow` | re-run command (Electron single-instance) / `wmctrl` on X11 |
 | Quit | `NSRunningApplication.terminate` | `WM_CLOSE` → terminate tree | `SIGTERM` → `SIGKILL` |
+| Launch at startup | `SMAppService.mainApp` | `HKCU\\…\\Run` value (packaged exe) | autostart `.desktop` entry |
 | Package | `build_app.sh` → `.app` | `build_exe.ps1` → `.exe` | `.deb` |
 
 ## 7. Feature parity matrix
@@ -117,8 +128,9 @@ Update this table in **every** PR that adds or changes a feature. Status: ✅ do
 | F-05 | Profile CRUD in Settings (B-7, B-8) | ✅ | 🟡 | ⏳ |
 | F-06 | Editable saved launch command (B-5) | ✅ | 🟡 | ⏳ |
 | F-07 | Claude path setting + auto-detect | ✅ | 🟡 | ⏳ |
-| F-08 | Square dark-orange UI, English strings (§5) | ✅ | 🟡 | ⏳ |
+| F-08 | Native look, English strings (§5) | ✅ macOS 26 | 🟡 Windows 11 style, UI untested | ⏳ |
 | F-09 | Tray / menu bar presence | ✅ menu bar | 🟡 tray (needs `pystray`) | ⏳ |
 | F-10 | App icon + branding | ✅ | 🟡 | ⏳ |
 | F-11 | Shared `config.json` schema (§4) | ✅ | ✅ | ⏳ |
 | F-12 | Single `VERSION` file | ✅ | ✅ | ⏳ |
+| F-13 | Launch at startup switch (§5.3) | ✅ `SMAppService` | 🟡 `Run` key, packaged exe only | ⏳ |

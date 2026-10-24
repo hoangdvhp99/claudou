@@ -8,7 +8,7 @@ Claudou has **one implementation per OS** and **no shared code**. What is shared
 2. **All platforms in the same change.** A feature PR must update **macOS, Windows and Linux** (once Linux exists). If a platform can't be done now, set its cell in the SPEC §7 parity matrix to ⏳ and open a tracking issue — never leave the matrix stale or silently skip a platform.
 3. **Shared literals stay identical.** Change these everywhere or nowhere:
    - UI strings (English, exact wording — grep the old string in all three trees),
-   - palette hex values and profile colors (`Theme.swift` ↔ `window/claudou/theme.py` ↔ Linux CSS),
+   - brand color hex values and profile colors (`Theme.swift` ↔ `window/claudou/theme.py` ↔ Linux CSS); surfaces follow each platform's own look (SPEC §5.1),
    - `config.json` keys and the launch-command shape.
 4. **Platform idioms are fine, behavior is not negotiable.** Presentation may differ where SPEC §5/§6 says so (popover vs. tray menu). Anything else that must differ is documented under SPEC §6 in the same PR.
 5. **Never touch the user's Claude data.** No moving, copying or deleting the Default profile folder; deleting only Claudou-owned folders (SPEC B-6/B-7).
@@ -35,4 +35,5 @@ Claudou has **one implementation per OS** and **no shared code**. What is shared
 | Launcher UI | `MenuView.swift` | `claudou/ui.py` (`App`) |
 | Settings + CRUD | `SettingsView.swift` | `claudou/ui.py` (`SettingsWindow`) |
 | Profile editor | `EditorView.swift` | `claudou/ui.py` (`EditorWindow`) |
-| Palette | `Theme.swift` | `claudou/theme.py` |
+| Palette | `Theme.swift` (brand colors only) | `claudou/theme.py` (brand colors + light/dark surfaces) |
+| Launch at startup | `SettingsView.swift` (`SMAppService`) | `claudou/startup.py` |

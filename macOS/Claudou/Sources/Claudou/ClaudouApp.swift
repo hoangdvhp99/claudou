@@ -16,14 +16,12 @@ struct ClaudouApp: App {
         Window("Profile", id: "editor") {
             EditorView()
                 .environmentObject(store)
-                .preferredColorScheme(.dark)
         }
         .windowResizability(.contentSize)
 
         Window("Settings", id: "settings") {
             SettingsView()
                 .environmentObject(store)
-                .preferredColorScheme(.dark)
         }
         .windowResizability(.contentSize)
     }
