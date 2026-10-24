@@ -11,58 +11,66 @@ extension Color {
     }
 }
 
-/// Dark-orange brand palette.
+/// Brand colors. Surfaces, text and borders use the system's semantic colors on macOS
+/// (SPEC §5.1), so only the accent, success and profile colors live here.
 enum Theme {
     static let accent = Color(hex: "#e8590c")
-    static let card = Color(hex: "#241a14")
-    static let cardHover = Color(hex: "#2d2018")
-    static let bg = Color(hex: "#140f0b")
-    static let surface = Color(hex: "#1b1410")
-    static let input = Color(hex: "#100b08")
-    static let border = Color(hex: "#3a2b21")
-    static let text = Color(hex: "#f5ece4")
-    static let dim = Color(hex: "#a38f80")
     static let success = Color(hex: "#5fb878")
+    /// Success as a fill behind white text (the plain success green is too light for that).
+    static let successStrong = Color(hex: "#2f9e5b")
 
     static let profileColors = ["#e8590c", "#f59f00", "#d9480f", "#c2255c",
                                 "#7048e8", "#1c7ed6", "#0ca678", "#868e96"]
+
+    static let avatarRadius: CGFloat = 10
 }
 
-struct AccentButtonStyle: ButtonStyle {
-    var color: Color = Theme.accent
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(color.opacity(configuration.isPressed ? 0.7 : 1))
-    }
-}
-
-struct GhostButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(Theme.dim)
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(configuration.isPressed ? Theme.card : Color.clear)
-            .overlay(Rectangle().stroke(Theme.border))
-    }
-}
-
-/// Square text-field chrome shared by the editor and settings windows.
-struct InputFieldStyle: ViewModifier {
-    var mono = false
-    func body(content: Content) -> some View {
+/// Flat translucent rounded card, like the sections of a native macOS 26 welcome sheet.
+struct Card<Content: View>: View {
+    var padding: CGFloat = 16
+    var radius: CGFloat = 16
+    @ViewBuilder var content: Content
+    var body: some View {
         content
-            .textFieldStyle(.plain)
-            .font(.system(size: mono ? 11 : 12, design: mono ? .monospaced : .default))
-            .padding(7)
-            .background(Theme.input)
-            .overlay(Rectangle().stroke(Theme.border))
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.primary.opacity(0.07),
+                        in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 }
 
-extension View {
-    func inputField(mono: Bool = false) -> some View { modifier(InputFieldStyle(mono: mono)) }
+/// Full-window translucency (vibrancy behind the window) with a transparent title bar.
+struct WindowBackground: NSViewRepresentable {
+    final class EffectView: NSVisualEffectView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let w = window else { return }
+            w.titlebarAppearsTransparent = true
+            w.titleVisibility = .hidden
+            w.styleMask.insert(.fullSizeContentView)
+            w.isMovableByWindowBackground = true
+        }
+    }
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let v = EffectView()
+        v.material = .underWindowBackground
+        v.blendingMode = .behindWindow
+        v.state = .active
+        return v
+    }
+    func updateNSView(_ v: NSVisualEffectView, context: Context) {}
+}
+
+/// Profile avatar: rounded square, profile color, white initial.
+struct AvatarView: View {
+    let initial: String
+    let color: Color
+    var size: CGFloat = 34
+    var body: some View {
+        Text(initial)
+            .font(.system(size: size * 0.45, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(color, in: RoundedRectangle(cornerRadius: Theme.avatarRadius, style: .continuous))
+    }
 }
