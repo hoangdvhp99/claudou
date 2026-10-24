@@ -43,8 +43,8 @@ cd window
 
 ## Usage
 
-- **Launcher window** (bottom-right, hides to the tray on close): **Open** / **Show**, ✕ to quit that Claude.
-- **Settings**: path to `claude.exe` (auto-detected for Store, per-user and Program Files installs) and profile **create / edit / delete**.
+- **Launcher window** (bottom-right, hides to the tray on close): a menu-style list with **Open** / **Show** pills, ✕ to quit that Claude, then **Settings…** and **Quit** (Ctrl+Q). It follows the Windows light/dark mode.
+- **Settings**: path to `claude.exe` (auto-detected for Store, per-user and Program Files installs), **Launch at startup** (per-user `Run` key; only in the packaged `Claudou.exe`) and profile **create / edit / delete**.
 
 ## Source layout
 
@@ -52,9 +52,10 @@ cd window
 |---|---|
 | `claudou/store.py` | Profile model, persistence, settings |
 | `claudou/launcher.py` | Command building, process discovery, focus/quit |
+| `claudou/startup.py` | Launch at startup (`Run` registry value) |
 | `claudou/ui.py` | Launcher window, Settings, profile editor, tray |
-| `claudou/theme.py` | Palette (same values as `Theme.swift`) |
-| `tests/test_core.py` | Store + matching tests |
+| `claudou/theme.py` | Brand colors (shared with `Theme.swift`) and light/dark surfaces |
+| `tests/test_core.py` | Store, matching and startup tests |
 | `main.py` | PyInstaller entry point |
 
 ## Requirements

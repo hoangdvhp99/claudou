@@ -27,10 +27,10 @@ Rationale: native to Ubuntu, smallest effort that still feels first-class, reuse
 
 | Spec surface | Linux implementation |
 |---|---|
-| Launcher (popover) | AppIndicator **menu**: one entry per profile (`● Work — Show` / `Work — Open`), *Quit this Claude* submenu items, **Settings…**, **Quit Claudou** |
+| Launcher (popover) | AppIndicator **menu**: one entry per profile (`● Work — Show` / `Work — Open`), *Quit this Claude* submenu items, **Settings…**, **Quit** |
 | Settings window | `Adw.ApplicationWindow` + `Adw.PreferencesGroup`: Claude executable row, profile list with Edit / Delete |
 | Profile editor | `Adw.Window` dialog with the §5.4 fields |
-| Palette / square corners | custom CSS provider (`border-radius: 0`, tokens from SPEC §5.1) |
+| Colors / corners | libadwaita defaults plus an accent override; brand colors from SPEC §5.1 |
 
 ### Proposed layout
 

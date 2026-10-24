@@ -23,7 +23,7 @@ open -n -a '/Applications/Claude.app' --args --user-data-dir='<profile folder>'
 
 ## Build and run
 
-Requirements: macOS 13+, Xcode or a Swift toolchain.
+Requirements: macOS 13+ (the macOS 26 look needs macOS 26), Xcode or a Swift toolchain. Rebuild with `./build_app.sh` after code changes: `swift build` alone does not update `build/Claudou.app`.
 
 ```bash
 cd macOS/Claudou
@@ -37,9 +37,10 @@ The app is not notarized; on first launch use right-click → Open if Gatekeeper
 
 ## Usage
 
-- **Menu bar popover** — launch only: **Open**, **Show** (bring a running profile to the front), ✕ to quit that Claude.
-- **Settings** (gear icon)
+- **Menu bar popover** — a menu-style, launch-only list: **Open** / **Show** pills (Show brings a running profile to the front), ✕ to quit that Claude, then **Settings…** and **Quit** (⌘Q).
+- **Settings**
   - Path to `Claude.app` (default `/Applications/Claude.app`).
+  - **Launch at startup** switch (registers a login item with `SMAppService`; macOS may ask you to approve it in System Settings → General → Login Items). It only works from the built `.app`.
   - Profile management: **create, edit, delete**. A profile has a name, a color, a data folder (leave empty to create one under `Claudou/profiles`, or choose an existing folder such as `~/.claude-instances/work`) and an editable launch command.
 - Sign in to the matching account the first time a new profile opens.
 
@@ -57,9 +58,9 @@ The app is not notarized; on first launch use right-click → Open if Gatekeeper
 | `ClaudouApp.swift` | `MenuBarExtra` + editor and settings windows |
 | `Launcher.swift` | Claude.app path, command building/running, process discovery, focus/quit |
 | `ProfileStore.swift` | Profile model, persistence, running state |
-| `MenuView.swift` | Popover |
-| `SettingsView.swift`, `EditorView.swift` | Settings and profile CRUD |
-| `Theme.swift` | Dark-orange palette and shared styles |
+| `MenuView.swift` | Menu-style popover |
+| `SettingsView.swift`, `EditorView.swift` | Settings (path, startup, profile CRUD) and the profile editor |
+| `Theme.swift` | Brand colors, `Card`, window vibrancy background, avatar |
 | `scripts/make_icon.swift`, `scripts/make_menubar.swift` | Generate the app icon and the template menu bar glyph from `assets/` |
 
 ## Notes

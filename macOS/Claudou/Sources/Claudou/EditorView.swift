@@ -21,65 +21,67 @@ struct EditorView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Text(store.editing == nil ? "New profile" : "Edit profile")
-                .font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.text)
+                .font(.system(size: 22, weight: .bold))
 
-            section("NAME") {
-                field("e.g. Personal, Company A", text: $name).onSubmit(save)
-            }
+            Card {
+                VStack(alignment: .leading, spacing: 14) {
+                    section("Name") { field("e.g. Personal, Company A", text: $name).onSubmit(save) }
 
-            section("COLOR") {
-                HStack(spacing: 10) {
-                    ForEach(Theme.profileColors, id: \.self) { c in
-                        Button { colorHex = c } label: {
-                            Rectangle().fill(Color(hex: c)).frame(width: 22, height: 22)
-                                .overlay(Rectangle().stroke(Theme.text, lineWidth: colorHex == c ? 2 : 0))
-                        }.buttonStyle(.plain)
+                    section("Color") {
+                        HStack(spacing: 12) {
+                            ForEach(Theme.profileColors, id: \.self) { c in
+                                Button { colorHex = c } label: {
+                                    Circle().fill(Color(hex: c)).frame(width: 24, height: 24)
+                                        .overlay(Circle().stroke(Color.primary, lineWidth: colorHex == c ? 2 : 0).padding(-3))
+                                }.buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 3)
                     }
-                }
-            }
 
-            if !isDefault {
-                section("DATA FOLDER (--user-data-dir)") {
-                    HStack(spacing: 8) {
-                        field("Leave empty to create one in Claudou/profiles", text: $dataDir, mono: true)
-                        Button("Choose…", action: pickFolder).buttonStyle(GhostButtonStyle())
+                    if !isDefault {
+                        section("Data folder (--user-data-dir)") {
+                            HStack(spacing: 8) {
+                                field("Leave empty to create one in Claudou/profiles", text: $dataDir, mono: true)
+                                Button("Choose…", action: pickFolder).buttonStyle(.bordered).controlSize(.large)
+                            }
+                        }
                     }
-                }
-            }
 
-            section("LAUNCH COMMAND") {
-                field("", text: $command, mono: true)
-                    .onChange(of: command) { v in
-                        if v != generated { commandEdited = true }
-                    }
-                HStack {
-                    Text(commandEdited ? "Edited by hand — used exactly as written."
-                                       : "Generated from the Claude.app path and data folder.")
-                        .font(.system(size: 10)).foregroundStyle(Theme.dim)
-                    Spacer()
-                    if commandEdited {
-                        Button("Regenerate") { commandEdited = false; command = generated }
-                            .buttonStyle(.plain).font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Theme.accent)
+                    section("Launch command") {
+                        field("", text: $command, mono: true)
+                            .onChange(of: command) { v in
+                                if v != generated { commandEdited = true }
+                            }
+                        HStack {
+                            Text(commandEdited ? "Edited by hand — used exactly as written."
+                                               : "Generated from the Claude.app path and data folder.")
+                                .font(.system(size: 11)).foregroundStyle(.secondary)
+                            Spacer()
+                            if commandEdited {
+                                Button("Regenerate") { commandEdited = false; command = generated }
+                                    .buttonStyle(.borderless).font(.system(size: 11, weight: .semibold))
+                            }
+                        }
                     }
                 }
             }
 
             HStack {
-                Button("Cancel") { dismiss() }.buttonStyle(GhostButtonStyle())
+                Button("Cancel") { dismiss() }.buttonStyle(.bordered)
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Save", action: save).buttonStyle(AccentButtonStyle())
+                Button("Save", action: save).buttonStyle(.borderedProminent).tint(Theme.accent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-            .padding(.top, 4)
+            .controlSize(.large)
         }
-        .padding(18)
-        .frame(width: 460)
-        .background(Theme.bg)
+        .padding(.horizontal, 24).padding(.top, 34).padding(.bottom, 22)
+        .frame(width: 520)
+        .background(WindowBackground().ignoresSafeArea())
         .onAppear(perform: load)
         .onChange(of: store.editing) { _ in load() }
         .onChange(of: name) { _ in syncCommand() }
@@ -91,12 +93,16 @@ struct EditorView: View {
     private func syncCommand() { if !commandEdited { command = generated } }
 
     private func field(_ placeholder: String, text: Binding<String>, mono: Bool = false) -> some View {
-        TextField(placeholder, text: text).inputField(mono: mono)
+        TextField(placeholder, text: text)
+            .textFieldStyle(.roundedBorder)
+            .controlSize(.large)
+            .font(.system(size: mono ? 12 : 13, design: mono ? .monospaced : .default))
+            .labelsHidden()
     }
 
     private func section<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(.system(size: 10, weight: .bold)).foregroundStyle(Theme.dim)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.system(size: 13, weight: .semibold))
             content()
         }
     }
