@@ -2,6 +2,7 @@
 import os
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -18,6 +19,18 @@ class CommandTests(unittest.TestCase):
     def test_profile_flag_quotes_spaces(self):
         cmd = launcher.build_command("C:\\Claude\\claude.exe", "D:\\My Data\\work")
         self.assertIn('"--user-data-dir=D:\\My Data\\work"', cmd)
+
+
+class LegacyConfigTests(unittest.TestCase):
+    def test_migrates_old_layout(self):
+        raw = {"profiles": {"default": {"display_name": "Main", "color": "#e8602c", "last_used": ""},
+                            "Marcus": {"display_name": "Marcus A", "color": "#ff9800",
+                                       "last_used": "2026-10-23T16:41:43.836310"}}}
+        ps = store.migrate_legacy(raw)
+        self.assertEqual([p.id for p in ps], ["default", "Marcus"])
+        self.assertEqual(ps[1].name, "Marcus A")
+        self.assertIsNone(ps[0].last_used)
+        self.assertRegex(ps[1].last_used, r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
 
 class MatchTests(unittest.TestCase):
@@ -39,10 +52,41 @@ class StartupTests(unittest.TestCase):
         self.assertFalse(startup.is_enabled())
 
 
+class UiSmokeTests(unittest.TestCase):
+    def test_settings_and_editor_open_without_breaking_launcher(self):
+        """Child windows are Toplevels of the root; the launcher's layout code must ignore them."""
+        try:
+            from claudou import ui
+            app = ui.App()
+        except Exception as e:           # no display / no customtkinter
+            self.skipTest(str(e))
+        try:
+            app.open_settings()
+            app.open_editor(None)
+            app.refresh()
+            app.root.update()
+            for _ in range(20):
+                app.root.update()
+                time.sleep(0.05)
+            self.assertGreater(app._settings.winfo_height(), 400)
+            self.assertGreater(app._settings.winfo_width(), 500)
+        finally:
+            app.quit()
+
+
 class StoreTests(unittest.TestCase):
     def setUp(self):
         os.environ["CLAUDOU_HOME"] = tempfile.mkdtemp()
         self.s = store.ProfileStore()
+
+    def test_move_reorders_and_persists(self):
+        a = self.s.create("Alpha", "#e8590c")
+        b = self.s.create("Beta", "#1c7ed6")
+        self.s.move(b.id, -1)
+        self.assertEqual([p.id for p in self.s.profiles], ["default", "beta", "alpha"])
+        self.s.move("default", -1)                 # already first: no-op
+        self.s.move("alpha", 1)                    # already last: no-op
+        self.assertEqual([p.id for p in store.ProfileStore().profiles], ["default", "beta", "alpha"])
 
     def test_default_profile_created(self):
         self.assertEqual([p.id for p in self.s.profiles], ["default"])

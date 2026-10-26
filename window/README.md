@@ -15,7 +15,7 @@ Every profile is a separate Claude process with its own data folder:
 - Profiles run in parallel; nothing is quit to open another profile.
 - **Default** launches Claude without flags and uses Claude's own folder (`%APPDATA%\Claude`); it is never moved or deleted.
 - A profile counts as running when a `claude.exe` main process has a matching `--user-data-dir` (read with `psutil`).
-- *Show* focuses the window; *Quit this Claude* sends `WM_CLOSE` and terminates the process tree after 10 s.
+- *Show* focuses the window; *Quit this Claude* asks Claude to quit with a Windows session-end message (`WM_ENDSESSION`, since `WM_CLOSE` only hides it to the tray) and terminates the process tree after 10 s.
 
 ```
 %LOCALAPPDATA%\Claudou\

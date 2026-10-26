@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test
+        run: |
+          pip install -r window/requirements.txt
+          python -m unittest discover -s window/tests
+      - name: Build Claudou.exe
+        working-directory: window
+        shell: pwsh
+        run: ./build_exe.ps1 -Install
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: window/dist/Claudou.exe
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Claudou.app
+        working-directory: macOS/Claudou
+        run: |
+          ./build_app.sh
+          ditto -c -k --keepParent build/Claudou.app Claudou-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: macOS/Claudou/Claudou-macOS.zip
+
+  release:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Claudou.exe
+            dist/Claudou-macOS.zip
+          generate_release_notes: true

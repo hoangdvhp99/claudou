@@ -83,6 +83,26 @@ class Profile:
                    command_edited=bool(d.get("commandEdited", False)))
 
 
+def _legacy_date(value: str) -> str | None:
+    """Old builds stored naive local ISO timestamps; SPEC §4 wants UTC `yyyy-MM-ddTHH:mm:ssZ`."""
+    try:
+        d = datetime.fromisoformat(value).astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+    return d.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def migrate_legacy(raw: dict) -> list[Profile]:
+    """Convert the old `{"profiles": {key: {display_name, color, last_used}}}` layout. Folders are unchanged:
+    the old build kept data in profiles/<key>, which is what an owned profile with that id resolves to."""
+    out = []
+    for key, d in (raw.get("profiles") or {}).items():
+        out.append(Profile(id=key, name=d.get("display_name") or key,
+                           color_hex=d.get("color") or PROFILE_COLORS[0],
+                           last_used=_legacy_date(d.get("last_used"))))
+    return out
+
+
 class ProfileStore:
     def __init__(self):
         profiles_dir().mkdir(parents=True, exist_ok=True)
@@ -113,10 +133,21 @@ class ProfileStore:
     # ── Persistence ──
 
     def _load(self):
+        path = claudou_root() / "config.json"
         try:
-            raw = json.loads((claudou_root() / "config.json").read_text(encoding="utf-8"))
-            self.profiles = [Profile.from_json(d) for d in raw]
-        except (OSError, ValueError, KeyError):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            self.profiles = []
+            return
+        try:
+            if isinstance(raw, dict):             # pre-SPEC Windows build: {"profiles": {key: {...}}}
+                self.profiles = migrate_legacy(raw)
+                shutil.copy2(path, path.with_name("config.legacy.json"))
+                self._save()
+            else:
+                self.profiles = [Profile.from_json(d) for d in raw]
+        except (TypeError, KeyError, AttributeError):
+            shutil.copy2(path, path.with_name("config.invalid.json"))
             self.profiles = []
 
     def _save(self):
@@ -160,6 +191,14 @@ class ProfileStore:
         for i, existing in enumerate(self.profiles):
             if existing.id == p.id:
                 self.profiles[i] = p
+        self._save()
+
+    def move(self, pid: str, delta: int) -> None:
+        """Move a profile up (-1) or down (+1) in the list; the order is the order of config.json."""
+        i = next((k for k, p in enumerate(self.profiles) if p.id == pid), None)
+        if i is None or not 0 <= i + delta < len(self.profiles):
+            return
+        self.profiles[i], self.profiles[i + delta] = self.profiles[i + delta], self.profiles[i]
         self._save()
 
     def mark_used(self, pid: str):

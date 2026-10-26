@@ -15,13 +15,14 @@ The Windows app was rewritten to follow the macOS design (parallel instances via
 | W-11 | Navy theme | ✅ Replaced by a light/dark Windows 11 style with the orange accent |
 | W-12 | Monolith, no tests | ✅ Split into modules, unit tests added |
 | W-13 | One Claude at a time | ✅ Parallel instances |
+| W-19 | Old `config.json` (`{"profiles": {...}}`) crashed startup | ✅ Migrated to the SPEC §4 array on first run; original kept as `config.legacy.json` |
 
 ## Open
 
 | # | Severity | Item |
 |---|---|---|
 | W-14 | High | **Verify on a real Windows machine**: UI rendering, tray icon, window focus, and that `claude.exe --user-data-dir=…` starts an independent instance. |
-| W-15 | Medium | The Store (MSIX) build may refuse to start `claude.exe` directly from `WindowsApps` (package identity). If so, add a fallback or document using the per-user installer. |
-| W-16 | Medium | Claude may minimize to the tray on window close, so `WM_CLOSE` might not exit it; the 10 s fallback then terminates the process tree. Confirm behavior and consider a gentler quit. |
+| W-15 | Low | Verified 2026-10-26 on the Store (MSIX) build: `Claude.exe --user-data-dir=…` from `WindowsApps` starts an independent instance and is detected as running. |
+| W-16 | Low | ✅ Fixed 2026-10-26: Quit sends `WM_QUERYENDSESSION` + `WM_ENDSESSION` to Claude's app windows (hidden ones too), which Claude handles as a Windows `session-end` and quits in ~0.3 s. `WM_CLOSE` only hid it to the tray. The 10 s terminate fallback remains. |
 | W-17 | Low | `pystray` is optional; without it, closing the window quits Claudou. |
 | W-18 | Medium | The redesigned UI (rounded cards, pills, light/dark colors, hover highlight) and the **Launch at startup** registry write were only linted and signature-checked; they have never been rendered or run. Verify on Windows, including that a frozen exe registers and unregisters correctly. |

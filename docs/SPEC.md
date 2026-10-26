@@ -48,7 +48,7 @@ Claudou root: macOS `~/Library/Application Support/Claudou` · Windows `%LOCALAP
 ]
 ```
 
-`dataDir`, `command`, `lastUsed` are omitted when empty. Dates are UTC ISO-8601 (`yyyy-MM-ddTHH:mm:ssZ`). Unknown keys must be ignored.
+The array order is the display order in the launcher and Settings (changed with the ▲ / ▼ buttons). `dataDir`, `command`, `lastUsed` are omitted when empty. Dates are UTC ISO-8601 (`yyyy-MM-ddTHH:mm:ssZ`). Unknown keys must be ignored.
 
 The path to the Claude app/executable is a per-platform setting (macOS `UserDefaults: claudeAppPath`, Windows `settings.json: claudeExePath`). Default: macOS `/Applications/Claude.app`; Windows/Linux auto-detected.
 
@@ -93,7 +93,7 @@ Header: rounded logo (56), **Claudou** (26 bold), subtitle "Run several Claude a
 
 1. **Claude app/executable** (macOS `Claude.app`, Windows `Claude executable`) — path field, **Browse…**, **Reset** (macOS) / **Auto-detect** (Windows, Linux). Below it a status banner, green `Claude found` or orange `Not found at this path`. Saved automatically as you type.
 2. **Launch at startup** — switch with the hint "Start Claudou in the menu bar when your computer starts." (Windows: "…in the tray…"). macOS uses `SMAppService` (a hint explains approval in Login Items if needed); Windows writes the per-user `Run` key and is available only in the packaged `.exe`.
-3. **Profiles** — title with **+ New profile** (accent); one card per profile: avatar (40), name, `RUNNING` / `DEFAULT` tags, folder path, *Reveal folder*, **Edit**, *Delete* (red; disabled per B-7).
+3. **Profiles** — title with **+ New profile** (accent); one card per profile: **▲ / ▼** move up/down (disabled at the ends; any profile, Default included, can be moved), avatar (40), name, `RUNNING` / `DEFAULT` tags, folder path, *Reveal folder*, **Edit**, *Delete* (red; disabled per B-7).
 
 ### 5.4 Profile editor
 
@@ -111,7 +111,7 @@ Title **New profile** / **Edit profile**, then one card with sentence-case label
 | Launcher surface | `MenuBarExtra` popover | Compact window + system tray | AppIndicator menu |
 | Process discovery | `ps` command lines | `psutil` | `/proc/*/cmdline` (psutil) |
 | Show | `NSRunningApplication.activate` | `SetForegroundWindow` | re-run command (Electron single-instance) / `wmctrl` on X11 |
-| Quit | `NSRunningApplication.terminate` | `WM_CLOSE` → terminate tree | `SIGTERM` → `SIGKILL` |
+| Quit | `NSRunningApplication.terminate` | `WM_ENDSESSION` (session-end) → terminate tree | `SIGTERM` → `SIGKILL` |
 | Launch at startup | `SMAppService.mainApp` | `HKCU\\…\\Run` value (packaged exe) | autostart `.desktop` entry |
 | Package | `build_app.sh` → `.app` | `build_exe.ps1` → `.exe` | `.deb` |
 
@@ -134,3 +134,4 @@ Update this table in **every** PR that adds or changes a feature. Status: ✅ do
 | F-11 | Shared `config.json` schema (§4) | ✅ | ✅ | ⏳ |
 | F-12 | Single `VERSION` file | ✅ | ✅ | ⏳ |
 | F-13 | Launch at startup switch (§5.3) | ✅ `SMAppService` | 🟡 `Run` key, packaged exe only | ⏳ |
+| F-14 | Reorder profiles with ▲ / ▼ (§5.3) | ⏳ | ✅ | ⏳ |

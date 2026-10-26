@@ -30,6 +30,9 @@ SUCCESS_BG = ("#dff3e6", "#243a2c")
 WARNING_BG = ("#fde8d8", "#4a2f1c")
 
 
+LOGO = "logo.png"
+
+
 def asset(name: str) -> Path:
     """Resolve a file in the repo's assets/ folder (or the PyInstaller bundle)."""
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))

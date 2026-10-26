@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import time
+from functools import lru_cache
 from pathlib import Path
 
 FLAG = "--user-data-dir="
@@ -36,7 +37,22 @@ def detect_claude_exe() -> str:
     for c in candidates:
         if str(c) not in ("", ".") and c.exists():
             return str(c)
-    return ""
+    return _store_exe()
+
+
+@lru_cache(maxsize=1)
+def _store_exe() -> str:
+    """WindowsApps can't be listed without admin rights, so ask the package manager for the Store install."""
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             "(Get-AppxPackage -Name Claude | Select-Object -First 1).InstallLocation"],
+            capture_output=True, text=True, timeout=15,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    exe = Path(out) / "app" / "Claude.exe" if out else None
+    return str(exe) if exe and exe.exists() else ""
 
 
 # ── Commands ──
@@ -107,7 +123,7 @@ def running_pids(profiles: list[tuple[str, str | None]]) -> dict[str, int]:
 
 # ── Window control (Windows only) ──
 
-def _windows_of(pid: int) -> list[int]:
+def _windows_of(pid: int, visible_only: bool = True) -> list[int]:
     user32 = ctypes.windll.user32
     found: list[int] = []
     proto = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
@@ -115,12 +131,18 @@ def _windows_of(pid: int) -> list[int]:
     def cb(hwnd, _):
         owner = ctypes.c_ulong()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
-        if owner.value == pid and user32.IsWindowVisible(hwnd):
+        if owner.value == pid and (not visible_only or user32.IsWindowVisible(hwnd)):
             found.append(hwnd)
         return True
 
     user32.EnumWindows(proto(cb), 0)
     return found
+
+
+def _class_name(hwnd: int) -> str:
+    buf = ctypes.create_unicode_buffer(64)
+    ctypes.windll.user32.GetClassNameW(hwnd, buf, 64)
+    return buf.value
 
 
 def focus(pid: int):
@@ -130,15 +152,26 @@ def focus(pid: int):
         user32.SetForegroundWindow(hwnd)
 
 
+def _request_exit(pid: int):
+    """WM_CLOSE only hides Claude to the tray. Claude quits on a Windows `session-end` event, which Electron
+    raises from WM_QUERYENDSESSION + WM_ENDSESSION(ENDSESSION_CLOSEAPP) sent to its app windows, hidden or not."""
+    user32 = ctypes.windll.user32
+    result = ctypes.c_ulong()
+    for hwnd in _windows_of(pid, visible_only=False):
+        if _class_name(hwnd) != "Chrome_WidgetWin_1":
+            continue
+        for msg, wparam in ((0x0011, 0), (0x0016, 1)):  # WM_QUERYENDSESSION, WM_ENDSESSION
+            user32.SendMessageTimeoutW(hwnd, msg, wparam, 1, 2, 1000, ctypes.byref(result))  # SMTO_ABORTIFHUNG
+
+
 def quit_pid(pid: int):
-    """Ask Claude to close its windows; terminate the process tree if it is still alive after 10s."""
+    """Ask Claude to exit cleanly; terminate the process tree if it is still alive after 10s."""
     import psutil
     try:
         proc = psutil.Process(pid)
     except psutil.NoSuchProcess:
         return
-    for hwnd in _windows_of(pid):
-        ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+    _request_exit(pid)
     deadline = time.time() + QUIT_TIMEOUT
     while time.time() < deadline:
         if not proc.is_running():
