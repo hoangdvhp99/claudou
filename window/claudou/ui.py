@@ -4,14 +4,19 @@ Mirrors the macOS app (menu bar popover + Settings); see docs/SPEC.md §5.
 """
 from __future__ import annotations
 
+import ctypes
 import os
 import queue
 import subprocess
+import tempfile
 import threading
+import tkinter as tk
+from ctypes import wintypes
+from pathlib import Path
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 from . import APP_NAME, APP_VERSION, launcher, startup
 from . import theme as T
@@ -46,10 +51,23 @@ def pill(parent, text, command, color=T.ACCENT, hover=T.ACCENT_HOVER, width=52):
 
 
 def entry(parent, var, placeholder="", mono=False, **kw):
-    return ctk.CTkEntry(parent, textvariable=var, placeholder_text=placeholder, height=32,
-                        corner_radius=RADIUS_CONTROL, fg_color=T.INPUT, border_color=T.BORDER, border_width=1,
-                        text_color=T.TEXT, placeholder_text_color=T.DIM,
-                        font=ctk.CTkFont(family="Consolas" if mono else FONT, size=12), **kw)
+    e = ctk.CTkEntry(parent, textvariable=var, height=32,
+                     corner_radius=RADIUS_CONTROL, fg_color=T.INPUT, border_color=T.BORDER, border_width=1,
+                     text_color=T.TEXT, font=ctk.CTkFont(family="Consolas" if mono else FONT, size=12), **kw)
+    if placeholder:
+        # CTkEntry never shows its own placeholder when a textvariable is bound, so overlay a label.
+        hint = ctk.CTkLabel(e, text=placeholder, text_color=T.DIM, fg_color=T.INPUT, height=18,
+                            font=ctk.CTkFont(family="Consolas" if mono else FONT, size=12), anchor="w")
+        hint.bind("<Button-1>", lambda _: e.focus_set())
+
+        def sync(*_):
+            if var.get():
+                hint.place_forget()
+            else:
+                hint.place(x=10, rely=0.5, anchor="w")
+        var.trace_add("write", sync)
+        sync()
+    return e
 
 
 def label(parent, text, size=12, color=T.TEXT, bold=False, **kw):
@@ -69,10 +87,52 @@ def avatar(parent, p: Profile, size: int):
                  fg_color=p.color_hex, corner_radius=10 if size >= 40 else RADIUS_CONTROL)
 
 
+def icon_frame(size: int) -> Image.Image:
+    """Logo as a rounded-square icon on a transparent background (like the macOS app icon).
+
+    Up to 48 px the full logo turns to mush, so small sizes use a tighter crop (hair, headband, eyes) that
+    keeps the big shapes, box-resampled and sharpened so the pixel-art edges stay crisp."""
+    src = Image.open(T.asset(T.LOGO)).convert("RGBA")
+    if size <= 48:
+        img = src.crop((130, 70, 1130, 1070)).resize((size, size), Image.BOX)
+        img = img.filter(ImageFilter.UnsharpMask(radius=1.0, percent=220, threshold=0))
+    else:
+        img = src.resize((size, size), Image.LANCZOS)
+        if size <= 64:
+            img = img.filter(ImageFilter.UnsharpMask(radius=0.8, percent=140, threshold=1))
+    scale = 4
+    mask = Image.new("L", (size * scale, size * scale), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, size * scale - 1, size * scale - 1),
+                                           radius=round(size * scale * 0.2), fill=255)
+    img.putalpha(mask.resize((size, size), Image.LANCZOS))
+    return img
+
+
+def apply_icon(win) -> None:
+    """customtkinter installs its blue default icon ~200 ms after a window opens; replace it with the logo."""
+    def setup():
+        try:
+            if win.winfo_exists():
+                win.iconbitmap(_icon_file())
+        except Exception:
+            pass
+    win.after(300, setup)
+
+
+def _icon_file() -> str:
+    """Multi-size .ico built from hand-resampled frames (cached in the temp folder)."""
+    ico = Path(tempfile.gettempdir()) / f"claudou_icon_{APP_VERSION}_l.ico"
+    if not ico.exists():
+        sizes = (256, 64, 48, 32, 24, 16)
+        frames = [icon_frame(n) for n in sizes]
+        frames[0].save(ico, format="ICO", sizes=[(n, n) for n in sizes], append_images=frames[1:])
+    return str(ico)
+
+
 def _logo(size: int, radius: int) -> ctk.CTkImage | None:
     """Logo with rounded corners (like the macOS app icon)."""
     try:
-        img = Image.open(T.asset("logo.png")).convert("RGBA")
+        img = Image.open(T.asset(T.LOGO)).convert("RGBA")
         scale = 4
         big = img.resize((size * scale, size * scale), Image.LANCZOS)
         mask = Image.new("L", big.size, 0)
@@ -114,6 +174,7 @@ class EditorWindow(ctk.CTkToplevel):
         super().__init__(app.root)
         self.app, self.profile, self.on_saved = app, profile, on_saved
         self.title("Edit profile" if profile else "New profile")
+        apply_icon(self)
         self.configure(fg_color=T.BG)
         self.resizable(False, False)
 
@@ -265,6 +326,7 @@ class SettingsWindow(ctk.CTkToplevel):
         super().__init__(app.root)
         self.app = app
         self.title("Settings")
+        apply_icon(self)
         self.configure(fg_color=T.BG)
         self.resizable(False, False)
         self.path = ctk.StringVar(value=app.store.exe_path)
@@ -275,11 +337,9 @@ class SettingsWindow(ctk.CTkToplevel):
         self.refresh()
 
     def _build(self):
-        self.scroll = ctk.CTkScrollableFrame(self, fg_color="transparent", corner_radius=0,
-                                             scrollbar_button_color=T.BORDER,
-                                             scrollbar_button_hover_color=T.ACCENT)
-        self.scroll.pack(fill="both", expand=True, padx=(12, 6), pady=(8, 8))
-        pad = self.scroll
+        pad = ctk.CTkFrame(self, fg_color="transparent")
+        pad.pack(fill="both", expand=True, padx=12, pady=(8, 12))
+        self.body = pad
 
         head = ctk.CTkFrame(pad, fg_color="transparent")
         head.pack(fill="x", padx=8, pady=(8, 14))
@@ -324,8 +384,8 @@ class SettingsWindow(ctk.CTkToplevel):
         label(ph, "Profiles", 17, T.TEXT, True).pack(side="left")
         button(ph, "+ New profile", lambda: self.app.open_editor(None, self.refresh), primary=True,
                width=110).pack(side="right")
-        self.list = ctk.CTkFrame(pad, fg_color="transparent")
-        self.list.pack(fill="x", padx=8)
+        self.list_host = ctk.CTkFrame(pad, fg_color="transparent")
+        self.list_host.pack(fill="x", padx=8)
         self._path_changed(save=False)
 
     def _toggle_startup(self):
@@ -358,22 +418,39 @@ class SettingsWindow(ctk.CTkToplevel):
         else:
             messagebox.showinfo("Not found", "Could not find Claude automatically. Use Browse…", parent=self)
 
+    MAX_ROWS = 5            # more profiles than this scroll inside the list instead of growing the window
+
     def refresh(self):
-        for w in self.list.winfo_children():
+        for w in self.list_host.winfo_children():
             w.destroy()
-        for p in self.app.store.profiles:
-            self._row(p)
-        n = len(self.app.store.profiles)
-        h = min(420 + n * (self.ROW_H + 8), 760)
-        self.geometry(f"580x{h}")
+        profiles = self.app.store.profiles
+        if len(profiles) > self.MAX_ROWS:
+            self.list = ctk.CTkScrollableFrame(self.list_host, fg_color="transparent", corner_radius=0,
+                                               scrollbar_button_color=T.BORDER,
+                                               scrollbar_button_hover_color=T.ACCENT)
+            self.list.configure(height=self.MAX_ROWS * (self.ROW_H + 8))
+        else:
+            self.list = ctk.CTkFrame(self.list_host, fg_color="transparent")
+        self.list.pack(fill="x")
+        for i, p in enumerate(profiles):
+            self._row(p, i, len(profiles))
+        self.update_idletasks()
+        self.geometry(f"580x{self.winfo_reqheight()}")
         self.app.refresh()
 
-    def _row(self, p: Profile):
+    def _row(self, p: Profile, index: int, total: int):
         store, running = self.app.store, self.app.running
         row = card(self.list, height=self.ROW_H)
         row.pack(fill="x", pady=(0, 8))
         row.pack_propagate(False)
-        avatar(row, p, 40).pack(side="left", padx=(12, 12))
+        order = ctk.CTkFrame(row, fg_color="transparent")
+        order.pack(side="left", padx=(6, 0))
+        for text, delta, enabled in (("▲", -1, index > 0), ("▼", 1, index < total - 1)):
+            ctk.CTkButton(order, text=text, width=24, height=24, corner_radius=RADIUS_CONTROL,
+                          fg_color="transparent", hover_color=T.CARD_HOVER, font=font(9),
+                          text_color=T.DIM if enabled else T.BORDER, state="normal" if enabled else "disabled",
+                          command=lambda d=delta: self._move(p, d)).pack()
+        avatar(row, p, 40).pack(side="left", padx=(6, 12))
         info = ctk.CTkFrame(row, fg_color="transparent")
         info.pack(side="left", fill="x", expand=True)
         tags = ctk.CTkFrame(info, fg_color="transparent")
@@ -396,6 +473,10 @@ class SettingsWindow(ctk.CTkToplevel):
         ctk.CTkButton(row, text="📁", width=28, height=28, corner_radius=RADIUS_CONTROL, fg_color="transparent",
                       hover_color=T.CARD_HOVER, text_color=T.DIM,
                       command=lambda: self._reveal(p)).pack(side="right")
+
+    def _move(self, p: Profile, delta: int):
+        self.app.store.move(p.id, delta)
+        self.refresh()
 
     def _reveal(self, p: Profile):
         p.dir.mkdir(parents=True, exist_ok=True)
@@ -420,6 +501,7 @@ class App:
         ctk.set_appearance_mode("system")
         self.root = ctk.CTk()
         self.root.title(APP_NAME)
+        apply_icon(self.root)
         self.root.configure(fg_color=T.BG)
         self.root.resizable(False, False)
         self.store = ProfileStore()
@@ -451,19 +533,18 @@ class App:
         label(titles, APP_NAME, 14, T.TEXT, True, anchor="w").pack(anchor="w")
         self.status = label(titles, "Idle", 12, T.DIM, True, anchor="w")
         self.status.pack(anchor="w")
-        divider(self.root).pack(fill="x", padx=14)
-
-        self.list = ctk.CTkScrollableFrame(self.root, fg_color="transparent", corner_radius=0,
-                                           scrollbar_button_color=T.BORDER, scrollbar_button_hover_color=T.ACCENT)
-        self.list.pack(fill="both", expand=True, padx=(8, 2), pady=(6, 6))
-
-        divider(self.root).pack(fill="x", padx=14)
+        # Footer first, packed to the bottom: it keeps its space however small the window ends up.
         foot = ctk.CTkFrame(self.root, fg_color="transparent")
-        foot.pack(fill="x", padx=8, pady=6)
+        foot.pack(fill="x", padx=8, pady=6, side="bottom")
         for text, cmd in (("Settings…", self.open_settings), ("Quit", self.quit)):
             ctk.CTkButton(foot, text=text, command=cmd, height=28, corner_radius=RADIUS_CONTROL,
                           fg_color="transparent", hover_color=T.CARD_HOVER, text_color=T.TEXT,
                           font=font(13), anchor="w").pack(fill="x")
+        divider(self.root).pack(fill="x", padx=14, side="bottom")
+
+        self.list = ctk.CTkScrollableFrame(self.root, fg_color="transparent", corner_radius=0,
+                                           scrollbar_button_color=T.BORDER, scrollbar_button_hover_color=T.ACCENT)
+        self.list.pack(fill="both", expand=True, padx=(8, 2), pady=(6, 6))
 
     def refresh(self):
         for w in self.list.winfo_children():
@@ -471,19 +552,38 @@ class App:
         for p in self.store.profiles:
             self._row(p)
         n = len(self.store.profiles)
-        self.list.configure(height=min(n * (self.ROW_H + 2), 330))
+        h = min(n * (self.ROW_H + 2), 330)
+        self.list.configure(height=h)
+        self.list._parent_frame.configure(height=h)      # the frame around the canvas keeps a 200 px minimum
+        if n * (self.ROW_H + 2) > 330:
+            self.list._scrollbar.grid()
+        else:
+            self.list._scrollbar.grid_remove()           # nothing to scroll
         running = len(self.running)
         self.status.configure(text=f"{running} running" if running else "Idle",
                               text_color=T.SUCCESS if running else T.DIM)
         self.root.update_idletasks()
-        h = self.root.winfo_reqheight()
-        if not getattr(self, "_placed", False):
-            x = self.root.winfo_screenwidth() - self.WIDTH - 12
-            y = self.root.winfo_screenheight() - h - 64
-            self.root.geometry(f"{self.WIDTH}x{h}+{x}+{y}")
-            self._placed = True
-        else:
-            self.root.geometry(f"{self.WIDTH}x{h}")
+        # Sum the stacked children by hand: the root's own request keeps the scrollable frame's 200 px minimum.
+        total = sum((h if w is self.list._parent_frame else w.winfo_reqheight()) + _pady(w)
+                    for w in self.root.winfo_children() if w.winfo_manager() == "pack")   # skip Toplevels
+        self.root.geometry(f"{self.WIDTH}x{total}")
+        self._place()
+
+    def _place(self):
+        """Dock the launcher in the bottom-right corner of the work area, so the taskbar never covers it."""
+        self.root.update_idletasks()
+        try:
+            user32 = ctypes.windll.user32
+            work = wintypes.RECT()
+            user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(work), 0)       # SPI_GETWORKAREA
+            frame = wintypes.RECT()
+            user32.GetWindowRect(user32.GetParent(self.root.winfo_id()), ctypes.byref(frame))
+            w, h = frame.right - frame.left, frame.bottom - frame.top
+            x, y = work.right - w - 12, work.bottom - h - 12
+        except Exception:
+            x = self.root.winfo_screenwidth() - self.root.winfo_width() - 12
+            y = self.root.winfo_screenheight() - self.root.winfo_height() - 64
+        tk.Wm.wm_geometry(self.root, f"+{max(0, x)}+{max(0, y)}")       # raw pixels, no customtkinter scaling
 
     def _row(self, p: Profile):
         is_running = p.id in self.running
@@ -555,6 +655,7 @@ class App:
 
     def show(self):
         self.root.deiconify()
+        self._place()
         self.root.lift()
         self.root.focus_force()
 
@@ -600,7 +701,7 @@ class App:
         if pystray is None:
             return
         try:
-            img = Image.open(T.asset("logo.png")).convert("RGBA").resize((64, 64), Image.NEAREST)
+            img = icon_frame(64)
             menu = pystray.Menu(
                 pystray.MenuItem("Show", lambda: self._inbox.put(("show", None, None)), default=True),
                 pystray.MenuItem("Quit", lambda: self._inbox.put(("quit", None, None))))
@@ -623,6 +724,11 @@ class App:
             except Exception:
                 pass
         self.root.destroy()
+
+
+def _pady(widget) -> int:
+    pad = widget.pack_info().get("pady", 0)
+    return sum(pad) if isinstance(pad, (tuple, list)) else 2 * int(pad)
 
 
 def _fmt(iso: str) -> str:

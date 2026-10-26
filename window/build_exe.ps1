@@ -13,9 +13,8 @@ if (-not (Get-Command pyinstaller -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-# App icon (.ico) generated from the shared logo
-$ico = Join-Path $env:TEMP "claudou.ico"
-python -c "from PIL import Image; Image.open(r'..\assets\logo.png').convert('RGBA').save(r'$ico', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+# App icon (.ico): same sharpened multi-size frames the app uses at runtime
+$ico = python -c "from claudou.ui import _icon_file; print(_icon_file())"
 
 $ctk = python -c "import customtkinter, os; print(os.path.dirname(customtkinter.__file__))"
 
